@@ -1,0 +1,21 @@
+#Metode Regresi Logistik
+library(readr)
+data_reglog <- read_csv("F:\B.Perkuliahan\skenario1_train.csv")
+View(skenario1_train)
+str(skenario1_train)
+skenario1_train$Y=as.factor(skenario1_train$Y)
+model <- glm(Y ~ X1 + X2 + X3 + X4 + X5 + X6, data = skenario1_train, family = "binomial")
+model
+summary(model)
+prediksi<-predict(model,skenario1_train,type="response")
+head(prediksi)
+
+ #Uji goodnes of fit Regresi Logistik
+install.packages("generalhoslem")
+library(generalhoslem)
+logitgof(skenario1_train$Y, fitted(model))
+
+#Uji goodnes of fit Regresi Logistik
+install.packages("generalhoslem")
+library(generalhoslem)
+logitgof(skenario1_train$Y, fitted(model))
