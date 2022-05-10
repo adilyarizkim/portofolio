@@ -1,0 +1,204 @@
+Sebagai seorang data analyst, kamu diminta untuk menganalisis performa dari cabang-cabang yang ada di DQLab Finance.
+Pada tugas kali ini, kamu akan menganalisis bagaimana performa cabang pada bulan lalu, yakni Mei 2020.
+Langkah yang akan dilakukan adalah,
+Memfilter data untuk bulan Mei 2020
+Membuat summary per cabang untuk melihat data 5 cabang terbaik dan terburuk
+Karena cabang bertambah setiap bulannya, maka perlu dicek umur cabang dan performa mei
+Mencari cabang terburuk untuk masing - masing kelompok umur
+
+-Data yang digunakan
+df_loan <- read.csv('https://storage.googleapis.com/dqlab-dataset/loan_disbursement.csv',stringsAsFactors = F)
+dplyr::glimpse(df_loan)
+
+-Memfilter data bulan Mei 2020, dan jumlahkan data per cabang
+library(dplyr)
+df_loan_mei <- df_loan %>% 
+  filter(tanggal_cair >= '2020-05-01', tanggal_cair <= '2020-05-31') %>% 
+  group_by (cabang) %>% 
+  summarise(total_amount = sum(amount))
+df_loan_mei
+
+-Tampilkan data 5 cabang dengan total amount paling besar
+library(dplyr)
+library(scales)
+df_loan_mei %>% 
+  arrange(desc(total_amount)) %>% 
+  mutate(total_amount= comma(total_amount)) %>% 
+  head(5)
+
+-Tampilkan data 5 cabang dengan total amount paling kecil
+library(dplyr)
+library(scales)
+df_loan_mei %>% 
+  arrange(total_amount) %>% 
+  mutate(total_amount = comma(total_amount)) %>% 
+  head(5)
+
+-Menghitung umur cabang (dalam bulan)
+Karena tidak tersedia data umur cabang, maka perlu dihitung terlebih dahulu,
+yakni dengan menghitung sudah berapa lama sejak tanggal cair pertama sampai dengan bulan Mei.
+library(dplyr)
+df_cabang_umur <- df_loan %>%
+  group_by(cabang) %>% 
+  summarise( pertama_cair= min(tanggal_cair)) %>% 
+  mutate(umur = as.numeric(as.date('2020-05-15') - as.Date(pertama_cair)) %/% 30 ) 
+df_cabang_umur
+
+-Gabungkan data umur dan performa mei
+Selanjutnya untuk membandingkan data umur dan performa di bulan mei, terlebih dahulu perlu digabungkan dulu data-data 
+yang sudah dibuat sebelumnya dengan menggunakan fungsi inner_join, lalu simpan sebagai df_loan_mei_umur.
+library(dplyr)
+df_loan_mei_umur <- df_cabang_umur %>%
+  inner_join(df_loan_mei, by = 'cabang')
+df_loan_mei_umur
+
+-Plot relasi umur dan performa mei
+Untuk membuat plot, akan digunakan package ggplot2 agar script yang digunakan lebih konsisten 
+ketika nanti ada perubahan dan supaya bisa lebih bisa dicustomisasi nantinya.
+Gunakan data df_loan_mei_umur yang sudah dibuat sebelumnya.
+library(ggplot2)
+
+ggplot(df_loan_mei_umur, aes(x = umur, y = total_amount)) +
+  geom_point() +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Semakin berumur, perfoma cabang akan semakin baik",
+	   x = "Umur(bulan)",
+       y = "Total Amount")
+
+-Kesimpulan
+Terlihat bahwa ada pola semakin tua cabang, maka performa nya semakin baik.
+Hal ini karena cabang tersebut masih berkembang sehingga belum sampai pada performa maksimal.
+
+Akan tetapi pada masing - masing umur itu juga ada cabang yang performanya dibawah yang lain.
+
+Selanjutnya akan dianalisis cabang yang performanya lebih rendah dari yang lain pada umur yang sama
+
+-Mencari cabang yang perfoma rendah untuk setiap umur
+library(dplyr)
+library(scales)
+df_loan_mei_flag <- df_loan_mei_umur %>% 
+  group_by(umur) %>% 
+  mutate(Q1 = quantile(total_amount, 0.25),
+	   Q3 = quantile(total_amount, 0.75),
+	  IQR = (Q3-Q1)) %>%
+  mutate(flag = ifelse(total_amount < (Q1 - IQR), 'rendah','baik'))
+
+df_loan_mei_flag %>% 
+  filter(flag == 'rendah') %>% 
+  mutate_if(is.numeric, funs(comma))
+
+-Buat Scatterplot lagi dan beri warna merah pada cabang yang rendah tad
+Untuk memperjelas bagaimana performa cabang yang rendah ini, plot lagi seperti sebelumnya. Sekarang menggunakan data yang baru, yakni df_loan_mei_flag.
+Lalu beri warna biru untuk cabang dengan flag 'baik' dan merah untuk yang 'rendah'.
+library(ggplot2)
+
+ggplot(df_loan_mei_flag, aes(x = umur, y = total_amount)) +
+  geom_point(aes(color = flag)) +
+  scale_color_manual(breaks = c("baik", "rendah"),
+                        values=c("blue", "red")) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Ada cabang berpeforma rendah padahal tidak termasuk bottom 5 nasional",
+       color = "",
+       x = "Umur (bulan)",
+       y = "Total Amount")
+
+-Lihat perbadingan performa cabang di umur yang sama
+Selanjutnya akan dianalisis lebih lanjut kenapa cabang itu bisa performanya rendah di mei
+
+Untuk kali ini akan dilihat hanya untuk yang umur 3 bulan saja, dilihat detail performa pada bulan mei dengan mengihitung,
+- jumlah hari pencairan dalam 1 bulan,
+- jumlah agen yang aktif,
+- total loan yang cair,
+- rata - rata amount cair per loan.
+library(dplyr)
+library(scales)
+df_loan_mei_flag %>% 
+  filter(umur == 3) %>% 
+  inner_join(df_loan, by = 'cabang') %>% 
+  filter(tanggal_cair >= '2020-05-01', tanggal_cair <= '2020-05-31') %>% 
+  group_by(cabang, flag) %>% 
+  summarise(jumlah_hari = n_distinct(tanggal_cair),
+            agen_aktif = n_distinct(agen),
+            total_loan_cair = n_distinct(loan_id),
+            avg_amount = mean(amount), 
+            total_amount = sum(amount)) %>% 
+  arrange(total_amount) %>% 
+  mutate_if(is.numeric, funs(comma))
+
+-Lihat perbadingan performa agen pada cabang yang rendah
+Dari hasil eksplorasi sebelumnya, terlihat bahwa yang berbeda jauh hanya total_loan_cair saja.
+Jumlah hari dan jumlah agen dalam 1 bulan sama semua.
+
+Selanjutnya perlu dilihat bagaimana perbandingan nya per agent.
+
+Untuk melanjutkan tadi, dilihat untuk yang umur 3 bulan dan flag nya rendah dilihat detail performa pada bulan mei per agen dengan mengihitung,
+
+- jumlah hari pencairan dalam 1 bulan,
+- total loan yang cair,
+- rata - rata amount cair per loan
+- total amount cair
+
+library(dplyr)
+library(scales)
+df_loan_mei_flag %>% 
+  filter(umur == 3, flag == 'rendah') %>% 
+  inner_join(df_loan, by = 'cabang') %>% 
+  filter(tanggal_cair >= '2020-05-01', tanggal_cair <= '2020-05-31') %>% 
+  group_by(cabang, agen) %>% 
+  summarise(jumlah_hari = n_distinct(tanggal_cair),
+            total_loan_cair = n_distinct(loan_id),
+            avg_amount = mean(amount), 
+            total_amount = sum(amount)) %>% 
+  arrange(total_amount) %>% 
+  mutate_if(is.numeric, funs(comma))
+
+-Lihat perbadingan performa agen pada cabang yang paling baik umur 3 bulan
+Pada tabel sebelumnya, terlihat pula bahwa ada cabang yang punya 3 agen, tapi performa nya jauh diatas cabang AE,
+ bahkan yang paling tinggil diantara cabang lain pada umur tersebut, lebih tinggi dari yang mempunya 4 agen cabang tersebut adalah cabang AH.
+library(dplyr)
+library(scales)
+df_loan %>% 
+  filter(cabang == 'AH') %>% 
+  filter(tanggal_cair >= '2020-05-01', tanggal_cair <= '2020-05-31') %>% 
+  group_by(cabang, agen) %>% 
+  summarise(jumlah_hari = n_distinct(tanggal_cair),
+            total_loan_cair = n_distinct(loan_id),
+            avg_amount = mean(amount), 
+            total_amount = sum(amount)) %>% 
+  arrange(total_amount) %>% 
+  mutate_if(is.numeric, funs(comma))
+
+-Kesimpulan
+Berdasarkan analisis tersebut, dapat disimpulkan bahwa rendahnya performa dari cabang AE adalah karena salah satu agen yang melakukan pencairan hanya 4 hari dalam 1 bulan, padahal agen lain bisa aktif 21 hari.
+Hal ini membuat total amount dari agen tersebut hanya 20% dibandingkan agen yang lainnya.
+
+Sedangkan pada cabang AH, performanya sangat baik karena ketiga agen melakukan pencairan hampir / selalu setiap hari kerja. 2 orang full 21 hari 1 orang 19 hari. Sehingga performa nya terjaga dengan baik.
+
+Perlu diperhatikan juga bahwa untuk membandingkan performa cabang itu sebaiknya di kelompokkan dulu berdasarkan karakteristik yang sama. Tidak langsung semua cabang dibandingkan tanpa mengetahui karakteristik nya.
+
+Apalagi ketika dalam real world nanti cabang ini bisa terletak di berbeda wilayah (pulau misalnya) yang mempunyai kultur yang berbeda
+
+Selanjutnya perlu dianalisis lebih lanjut kenapa ada agen yang hanya aktif beberapa hari saja dalam sebulan.
+
+Untuk kedepannya setiap agen agar dipastikan untuk bisa aktif setiap hari nya, sehingga bisa menjaga performa cabang.
+Dengan cara yang hampir sama, akan dilihat bagaimana performa masing-masing agen dari cabang AH tersebut. Hanya saja untuk ini bisa langsung pakai data df_loan lalu filter nama cabang nya saja.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

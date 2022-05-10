@@ -1,0 +1,57 @@
+PROJECT
+Petunjuk Penyelesaian Project
+Untuk menyelesaikan project, maka kita akan mengetikkan code yang perlu disubmit untuk dicek jawabannya benar atau salah.
+1A. Overall perofrmance DQLab Store dari tahun 2009 - 2012 untuk jumlah order dan total sales order finished
+1B. Overall performance DQLab by subcategory product yang akan dibandingkan antara tahun 2011 dan tahun 2012
+2A. Efektifitas dan efisiensi promosi yang dilakukan selama ini, dengan menghitung burn rate dari promosi yang dilakukan overall berdasarkan tahun
+2B. Efektifitas dan efisiensi promosi yang dilakukan selama ini, dengan menghitung burn rate dari promosi yang dilakukan overall berdasarkan sub-category
+Setelah melihat hasil analisa di Sub Bab 1 dan 2, selanjutnya dilakukan analisa terhadap customer DQLab. Analisa dari sisi customer dengan menggunakan metrics:
+3A. Analisa terhadap customer setiap tahunnya
+3B. Analisa terhadap jumlah customer baru setiap tahunnya
+3C. Cohort untuk mengetahui angka retention customer tahun 2009
+Overall performance DQLab Store dari tahun 2009-2012 untuk mendapatkan total penjualan (sales) dan jumlah order (number_of_order) dari tahun 2009 sampai 2012 (years).
+SELECT YEAR(order_date) years,
+SUM(sales) sales,
+COUNT(order_quantity) number_of_order
+FROM dqlab_sales_store
+WHERE order_status='Order Finished'
+GROUP BY years
+ORDER BY years ASC;
+
+Overall performance untuk mendapatkan total penjualan (sales) berdasarkan sub category dari produk (product_sub_category) pada tahun 2011 dan 2012 saja (years)
+SELECT YEAR(order_date) years,
+product_sub_category,
+SUM(sales) sales
+FROM dqlab_sales_store
+WHERE YEAR(order_date) BETWEEN 2011 AND 2012
+AND order_status='Order Finished'
+GROUP BY years,product_sub_category
+ORDER BY years,sales DESC;
+
+Perhitungan efektivitas dan efisinesi promosi berdasarkan tahun dan presentase burn rate (total dicount/total sales*100)
+SELECT YEAR(order_date) years,
+SUM(sales) sales,
+SUM(discount_value) promotion_value,
+ROUND(SUM(discount_value)*100/SUM(sales),2)
+burn_rate_percentage
+FROM dqlab_sales_store
+WHERE order_status='Order Finished'
+GROUP BY 1;
+
+Perhitungan efektivitas dan efisinesi promosi berdasarkan product sub category dan product category
+SELECT YEAR(order_date) years, product_sub_category, product_category,
+SUM(sales) sales,
+SUM(discount_value) promotion_value,
+ROUND(SUM(discount_value)*100/SUM(sales),2) burn_rate_percentage
+FROM dqlab_sales_store
+WHERE YEAR(order_date)=2012
+AND order_status='Order Finished'
+GROUP BY years, product_sub_category, product_category
+ORDER BY sales DESC;
+
+Total transaksi setiap tahun yang dilakukan oleh customer
+SELECT YEAR(order_date) years,
+COUNT(DISTINCT customer) number_of_customer
+FROM dqlab_sales_store
+WHERE order_status='Order Finished'
+GROUP BY years;
